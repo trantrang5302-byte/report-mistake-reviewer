@@ -47,61 +47,45 @@ async function autoReview() {
         - Reasons: ${JSON.stringify(report.reasons)}
         - User Note: ${report.otherReason}
 
-        YÊU CẦU CỰC KỲ QUAN TRỌNG:
-        1. Phân tích bằng TIẾNG VIỆT.
-        2. Phần "analysis" CHỈ chứa lời giải thích logic. KHÔNG lặp lại tên App, KHÔNG lặp lại ID, KHÔNG lặp lại format báo cáo.
-        3. Phần "proposedFix" phải là một chuỗi văn bản (string) mô tả chi tiết:
-           - Câu hỏi: (nội dung mới)
-           - Đáp án: (danh sách mới)
-           - Giải thích: (nội dung mới)
-        4. Trả về JSON chuẩn: {analysis, conclusion, action, contentType, proposedFix, sourceLink, evidence, position}`;
+        YÊU CẦU: Trả về JSON có cấu trúc chính xác như sau:
+        {
+            "qId": "${qId}",
+            "analysis": "Phân tích logic bằng tiếng Việt...",
+            "verifySource": true/false,
+            "sourceLink": "URL",
+            "evidence": "Trích dẫn nguyên văn (Quote)",
+            "reasoning": "Suy luận logic 4 bước",
+            "sourceVerdict": "Kết luận nguồn chứng minh CMS Đúng hay Sai",
+            "position": "Vị trí trang/dòng",
+            "confidence": 0-100,
+            "conclusion": "Valid/Invalid/Unclear",
+            "action": "OK/Cancel/Wait",
+            "contentType": "0/1/2/3",
+            "proposedFix": "Bản sửa lỗi đề xuất nếu có",
+            "screenshot": "${report.screenshot || 'null'}"
+        }`;
 
         const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                safetySettings: [
-                    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-                    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-                    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-                    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-                ]
-            })
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
 
         const aiData = await aiRes.json();
-        if (!aiData.candidates || !aiData.candidates[0]) return;
-
         const aiText = aiData.candidates[0].content.parts[0].text;
         const result = JSON.parse(aiText.match(/\{[\s\S]*\}/)[0]);
 
-        // Xử lý proposedFix nếu nó là object
-        let finalFix = result.proposedFix;
-        if (typeof finalFix === 'object' && finalFix !== null) {
-            finalFix = Object.entries(finalFix).map(([k, v]) => `- ${k}: ${v}`).join('\n');
-        }
-
-        // Cập nhật CMS
-        report.note = `${result.analysis}\n\nĐỀ XUẤT: ${finalFix || 'Giữ nguyên'}`;
+        // Cập nhật CMS Note
+        report.note = `${result.analysis}\n\nĐỀ XUẤT: ${result.proposedFix || 'Giữ nguyên'}`;
         await fetch('https://api-cms-v2-dot-micro-enigma-235001.appspot.com/api/question/update-questions-report', {
             method: 'POST', headers, body: JSON.stringify({ reportQuestions: [report], shouldUpdateLastUpdate: true })
         });
 
-        // Đẩy lên Discord
-        spawnSync('node', [
-            'scripts/push-detailed-report.js',
-            qId.toString(),
-            result.analysis,
-            result.conclusion,
-            result.action,
-            result.contentType.toString(),
-            result.sourceLink || 'null',
-            result.evidence || 'N/A',
-            result.position || 'N/A',
-            finalFix || 'null',
-            report.screenshot || 'null'
-        ], { stdio: 'inherit' });
+        // Lưu JSON tạm và Đẩy lên Discord
+        const tempJson = `temp_${qId}.json`;
+        fs.writeFileSync(tempJson, JSON.stringify(result, null, 2));
+        spawnSync('node', ['scripts/push-detailed-report.js', tempJson], { stdio: 'inherit' });
+        fs.unlinkSync(tempJson);
 
     } catch (e) {
         console.error("❌ Lỗi:", e.message);
