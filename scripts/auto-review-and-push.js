@@ -30,9 +30,31 @@ async function autoReview() {
         const qData = (await resQ.json())[0];
 
         const guidelinePath = fs.existsSync('docs/REVIEW_GUIDELINE.md') ? 'docs/REVIEW_GUIDELINE.md' : (fs.existsSync('../docs/REVIEW_GUIDELINE.md') ? '../docs/REVIEW_GUIDELINE.md' : '');
-        const guideline = guidelinePath ? fs.readFileSync(guidelinePath, 'utf8') : "Review this report.";
+        const guideline = guidelinePath ? fs.readFileSync(guidelinePath, 'utf8') : "Review report.";
         
-        const prompt = `Bạn là Chuyên gia thẩm định nội dung. Hãy thẩm định báo cáo sau dựa trên QUY ĐỊNH.\n\nQUY ĐỊNH:\n${guideline}\n\nDỮ LIỆU CMS:\n- App: ${APP_MAP[qData.appId] || qData.appId}\n- Question: ${qData.text}\n- Answers: ${JSON.stringify(qData.answers)}\n- Explanation: ${qData.explanation}\n\nDỮ LIỆU REPORT:\n- Reasons: ${JSON.stringify(report.reasons)}\n- User Note: ${report.otherReason}\n\nYÊU CẦU: Trả về JSON {analysis, conclusion, action, contentType, proposedFix, sourceLink, evidence, position}`;
+        const prompt = `Bạn là Chuyên gia thẩm định nội dung. Hãy thẩm định báo cáo sau dựa trên QUY ĐỊNH đính kèm.
+
+        QUY ĐỊNH:
+        ${guideline}
+
+        DỮ LIỆU CMS GỐC:
+        - App: ${APP_MAP[qData.appId] || qData.appId}
+        - Question: ${qData.text}
+        - Answers: ${JSON.stringify(qData.answers)}
+        - Explanation: ${qData.explanation}
+
+        DỮ LIỆU REPORT:
+        - Reasons: ${JSON.stringify(report.reasons)}
+        - User Note: ${report.otherReason}
+
+        YÊU CẦU CỰC KỲ QUAN TRỌNG:
+        1. Phân tích bằng TIẾNG VIỆT.
+        2. Phần "analysis" CHỈ chứa lời giải thích logic. KHÔNG lặp lại tên App, KHÔNG lặp lại ID, KHÔNG lặp lại format báo cáo.
+        3. Phần "proposedFix" phải là một chuỗi văn bản (string) mô tả chi tiết:
+           - Câu hỏi: (nội dung mới)
+           - Đáp án: (danh sách mới)
+           - Giải thích: (nội dung mới)
+        4. Trả về JSON chuẩn: {analysis, conclusion, action, contentType, proposedFix, sourceLink, evidence, position}`;
 
         const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
             method: 'POST',
@@ -54,14 +76,20 @@ async function autoReview() {
         const aiText = aiData.candidates[0].content.parts[0].text;
         const result = JSON.parse(aiText.match(/\{[\s\S]*\}/)[0]);
 
-        // Cập nhật CMS Note
-        report.note = `${result.analysis}\n\nĐỀ XUẤT: ${result.proposedFix || 'Giữ nguyên'}`;
+        // Xử lý proposedFix nếu nó là object
+        let finalFix = result.proposedFix;
+        if (typeof finalFix === 'object' && finalFix !== null) {
+            finalFix = Object.entries(finalFix).map(([k, v]) => `- ${k}: ${v}`).join('\n');
+        }
+
+        // Cập nhật CMS
+        report.note = `${result.analysis}\n\nĐỀ XUẤT: ${finalFix || 'Giữ nguyên'}`;
         await fetch('https://api-cms-v2-dot-micro-enigma-235001.appspot.com/api/question/update-questions-report', {
             method: 'POST', headers, body: JSON.stringify({ reportQuestions: [report], shouldUpdateLastUpdate: true })
         });
 
-        // Đẩy lên Discord dùng spawnSync (An toàn tuyệt đối với ký tự đặc biệt)
-        const args = [
+        // Đẩy lên Discord
+        spawnSync('node', [
             'scripts/push-detailed-report.js',
             qId.toString(),
             result.analysis,
@@ -71,14 +99,12 @@ async function autoReview() {
             result.sourceLink || 'null',
             result.evidence || 'N/A',
             result.position || 'N/A',
-            result.proposedFix || 'null',
+            finalFix || 'null',
             report.screenshot || 'null'
-        ];
-
-        spawnSync('node', args, { stdio: 'inherit' });
+        ], { stdio: 'inherit' });
 
     } catch (e) {
-        console.error("❌ Lỗi xử lý AI hoặc Push:", e.message);
+        console.error("❌ Lỗi:", e.message);
     }
 }
 
