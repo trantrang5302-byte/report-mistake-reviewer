@@ -64,14 +64,14 @@ Thẩm định Report Mistake của: [Question ID] - ([Tên app])
    (⚠️ Nếu KHÔNG VERIFY -> BỎ TOÀN BỘ MỤC NÀY)
 
 5. Kết luận:
-   - CMS Đúng -> Report của người dùng là Sai (Invalid).
-   - CMS Sai -> Report của người dùng là Đúng (Valid).
-   - Unclear -> Cần con người xử lý (Unclear).
+- CMS Đúng -> Report của người dùng là Sai (Invalid).
+- CMS Sai -> Report của người dùng là Đúng (Valid).
+- Unclear -> cần con người xử lý (Unclear).
 
 **7. Bản chỉnh sửa đề xuất (CHỈ khi Valid):**
-   - **Câu hỏi:** [Nội dung mới nếu cần sửa]
-   - **Đáp án:** [Danh sách đáp án đã sửa]
-   - **Giải thích:** [Nội dung giải thích mới]
+- **Câu hỏi:** [Nội dung mới nếu cần sửa]
+- **Đáp án:** [Danh sách đáp án đã sửa]
+- **Giải thích:** [Nội dung giải thích mới]
 
 6. Đề xuất xử lý:
    * Hành động: OK / Cancel / Wait

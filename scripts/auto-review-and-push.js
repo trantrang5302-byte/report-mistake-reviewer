@@ -30,11 +30,40 @@ async function autoReview() {
         const qData = (await resQ.json())[0];
 
         const guidelinePath = fs.existsSync('docs/REVIEW_GUIDELINE.md') ? 'docs/REVIEW_GUIDELINE.md' : (fs.existsSync('../docs/REVIEW_GUIDELINE.md') ? '../docs/REVIEW_GUIDELINE.md' : '');
-        const guideline = guidelinePath ? fs.readFileSync(guidelinePath, 'utf8') : "Review this report.";
+        const guideline = guidelinePath ? fs.readFileSync(guidelinePath, 'utf8') : "Hãy thẩm định báo cáo này.";
         
-        const prompt = `Bạn là Chuyên gia thẩm định nội dung. Hãy thẩm định báo cáo sau dựa trên QUY ĐỊNH.\n\nQUY ĐỊNH:\n${guideline}\n\nDỮ LIỆU CMS:\n- App: ${APP_MAP[qData.appId] || qData.appId}\n- Question: ${qData.text}\n- Answers: ${JSON.stringify(qData.answers)}\n- Explanation: ${qData.explanation}\n\nDỮ LIỆU REPORT:\n- Reasons: ${JSON.stringify(report.reasons)}\n- User Note: ${report.otherReason}\n\nYÊU CẦU: Trả về JSON {analysis, conclusion, action, contentType, proposedFix, sourceLink, evidence, position}`;
+        const prompt = `Bạn là Chuyên gia thẩm định nội dung (Content Review Specialist).
+        Nhiệm vụ: Phân tích báo cáo lỗi của người dùng dựa trên QUY ĐỊNH và DỮ LIỆU CMS.
 
-        // Gọi API Gemini với Safety Settings tắt để tránh bị chặn
+        QUY ĐỊNH THẨM ĐỊNH:
+        ${guideline}
+
+        DỮ LIỆU CMS GỐC:
+        - App: ${APP_MAP[qData.appId] || qData.appId}
+        - Câu hỏi: ${qData.text}
+        - Đáp án: ${JSON.stringify(qData.answers)}
+        - Giải thích: ${qData.explanation}
+
+        DỮ LIỆU REPORT:
+        - Reasons (Lý do lỗi): ${JSON.stringify(report.reasons)}
+        - Ghi chú từ người dùng: ${report.otherReason || "Không có"}
+
+        YÊU CẦU QUAN TRỌNG:
+        1. Phân tích bằng TIẾNG VIỆT rõ ràng, ngắn gọn. 
+        2. TUYỆT ĐỐI KHÔNG đưa dữ liệu JSON gốc vào phần "analysis".
+        3. Nếu CMS đúng, kết luận Invalid. Nếu CMS sai, kết luận Valid và đưa ra nội dung sửa đổi trong "proposedFix".
+        4. Trả về DUY NHẤT một khối JSON theo cấu trúc sau:
+        {
+            "analysis": "Viết phân tích của bạn ở đây bằng tiếng Việt...",
+            "conclusion": "Valid/Invalid/Unclear",
+            "action": "OK/Cancel/Wait",
+            "contentType": "0/1/2/3",
+            "proposedFix": "Nội dung đề xuất sửa đổi nếu có, nếu không thì ghi null",
+            "sourceLink": "URL nguồn nếu cần verify, nếu không thì ghi null",
+            "evidence": "Trích dẫn nguyên văn từ nguồn nếu có",
+            "position": "Số trang hoặc vị trí trong nguồn"
+        }`;
+
         const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -50,10 +79,7 @@ async function autoReview() {
         });
 
         const aiData = await aiRes.json();
-        if (!aiData.candidates || !aiData.candidates[0]) {
-            console.error(">>> Gemini bị chặn hoặc lỗi:", JSON.stringify(aiData));
-            return;
-        }
+        if (!aiData.candidates || !aiData.candidates[0]) return;
 
         const aiText = aiData.candidates[0].content.parts[0].text;
         const result = JSON.parse(aiText.match(/\{[\s\S]*\}/)[0]);
@@ -64,7 +90,7 @@ async function autoReview() {
             method: 'POST', headers, body: JSON.stringify({ reportQuestions: [report], shouldUpdateLastUpdate: true })
         });
 
-        // Đẩy lên Discord qua lệnh shell để tránh cache của require
+        // Đẩy lên Discord
         const pushCmd = `node scripts/push-detailed-report.js ${qId} ${JSON.stringify(result.analysis)} ${JSON.stringify(result.conclusion)} ${JSON.stringify(result.action)} ${JSON.stringify(result.contentType)} ${JSON.stringify(result.sourceLink || 'null')} ${JSON.stringify(result.evidence || 'N/A')} ${JSON.stringify(result.position || 'N/A')} ${JSON.stringify(result.proposedFix || 'null')}`;
         execSync(pushCmd, { stdio: 'inherit' });
 
