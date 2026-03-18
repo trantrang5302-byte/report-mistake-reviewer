@@ -33,47 +33,68 @@ async function run() {
         if (fs.existsSync('all_reports.json')) {
             const reports = JSON.parse(fs.readFileSync('all_reports.json'));
             report = reports.find(r => r.questionId == qId);
+        } else if (fs.existsSync('../all_reports.json')) {
+            const reports = JSON.parse(fs.readFileSync('../all_reports.json'));
+            report = reports.find(r => r.questionId == qId);
         }
 
         const appName = APP_MAP[qData.appId] || `App ID: ${qData.appId}`;
         const isKnowledgeIssue = report ? report.reasons.some(r => [0, 1, 2].includes(r)) : true;
 
-        let description = `**1. Trích xuất nội dung gốc từ CMS:**
-* Tên app: ${appName}
-* Câu hỏi: "${truncate(qData.text, 500)}"
-* Các đáp án:
+        // Xử lý logic hiển thị Nguồn
+        const hasSource = sourceLink && sourceLink !== "null" && sourceLink !== "undefined";
+        const sourceSection = hasSource ? `
+4. Nguồn kiểm chứng (CHỈ khi VERIFY SOURCE)
+- Link nguồn tham khảo: [${sourceLink}]
+- Bằng chứng: [${truncate(evidence || 'N/A', 500)}]
+- Vị trí trong tài liệu [${position || 'N/A'}]` : "";
+
+        // Xử lý logic hiển thị Bản chỉnh sửa (Chỉ khi Valid)
+        const isValid = conclusion.toLowerCase().includes('valid');
+        const fixSection = (isValid && proposedFix && proposedFix !== "null") ? `
+   * Bản chỉnh sửa (chỉ có và hiện khi valid):
+${proposedFix}` : "";
+
+        const description = `
+  1. Trích xuất nội dung gốc từ CMS:
+   * Tên app: ${appName}
+   * Câu hỏi: "${truncate(qData.text, 500)}"
+   * Các đáp án:
 ${qData.answers.map(a => ((a.correct === true || a.isCorrect === true) ? "- [✅] " : "- [❌] ") + truncate(a.text, 200)).join('\n')}
-* Giải thích: "${truncate(qData.explanation, 500)}"
+   * Giải thích: "${truncate(qData.explanation, 500)}"
 
-**2. Phân tích Report:**
-* Reasons (enum): ${report ? report.reasons.map(id => `${id} (${ERROR_MAP[id]})`).join(', ') : 'N/A'}
-* Report Type: ${isKnowledgeIssue ? "Knowledge Issue" : "Non-Knowledge Issue"}
 
-**3. Phân tích tính đúng sai của report**
-* Phân tích: ${analysis}
-* So sánh: ${action.toUpperCase() === 'OK' ? "Sai lệch với kiến thức chuẩn/CMS" : "Hoàn toàn khớp với CMS"}
+  2. Phân tích Report:
+   * Reasons (enum): ${report ? report.reasons.map(id => `${id} (${ERROR_MAP[id]})`).join(', ') : 'N/A'}
+   * Report Type: ${isKnowledgeIssue ? "Knowledge Issue" : "Non-Knowledge Issue"}
 
-${(sourceLink && sourceLink !== "null" && sourceLink !== "undefined") ? `**4. Nguồn kiểm chứng (VERIFY SOURCE)**
-- Link nguồn tham khảo: ${sourceLink}
-- Bằng chứng: "${truncate(evidence || 'N/A', 500)}"
-- Vị trí trong tài liệu: ${position || 'N/A'}` : ""}
 
-**5. Kết luận:**
-${conclusion === 'Invalid' ? 'CMS Đúng -> Report của người dùng là Sai (Invalid).' : (conclusion === 'Valid' ? 'CMS Sai -> Report của người dùng là Đúng (Valid).' : 'Unclear -> Cần con người xử lý (Unclear).')}
+  3. Phân tích tính đúng sai của report
+  * Phân tích: ${analysis}
+  * So sánh:  với CMS 
+${sourceSection}
 
-${(proposedFix && proposedFix !== "null" && proposedFix !== "undefined") ? `**7. Bản chỉnh sửa đề xuất (CHỈ khi Valid):**
-${proposedFix}` : ""}
 
-**6. Đề xuất xử lý:**
-* Hành động: ${action.toUpperCase()}
-* Phân loại contentType: ${contentType}`;
+  5. Kết luận:
+${conclusion === 'Invalid' ? 'CMS Đúng -> Report của người dùng là Sai (Invalid).' : (conclusion === 'Valid' ? 'CMS Sai -> Report của người dùng là Đúng (Valid).' : 'Unclear -> cần con người xử lý (Unclear).')}
+
+
+  6. Đề xuất xử lý:
+   * Hành động: ${action.toUpperCase()}${fixSection}
+   * Phân loại contentType: ${contentType}
+
+
+7. Screenshot report
+Ảnh screenshot của report mistake:`;
 
         const embed = new EmbedBuilder()
-            .setTitle(`Thẩm định Report Mistake của: ${qId} - (${appName})`)
+            .setTitle(`📄 Thẩm định Report Mistake — ID: ${qId} (${appName})`)
             .setColor(action.toUpperCase() === 'OK' ? 0x00FF00 : (action.toUpperCase() === 'CANCEL' ? 0xFF0000 : 0xFFFF00))
             .setDescription(description);
 
-        if (report && report.screenshot && report.screenshot !== "N/A") embed.setImage(report.screenshot);
+        if (report && report.screenshot && report.screenshot !== "N/A") {
+            embed.setImage(report.screenshot);
+        }
 
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId(`confirm_ok_${contentType}_${qId}`).setLabel('OK - Chấp nhận & Sửa').setStyle(ButtonStyle.Success),
