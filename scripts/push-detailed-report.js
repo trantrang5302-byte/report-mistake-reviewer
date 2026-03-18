@@ -13,55 +13,48 @@ const APP_MAP = {
 const ERROR_MAP = { 0: 'Incorrect Answer', 1: 'Wrong Explanation', 2: 'Wrong Category', 3: 'Grammatical Error', 4: 'Missing Content', 5: 'Typo', 6: 'Bad Image Quality', 7: 'Other' };
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
-function truncate(str, max = 1000) { if (!str) return "N/A"; return str.length > max ? str.substring(0, max) + "..." : str; }
+function cleanText(str) {
+    if (!str) return "N/A";
+    return str.replace(/<br\s*\/?>/gi, '\n').replace(/\\n/g, '\n').trim();
+}
 
 async function run() {
     const args = process.argv.slice(2);
-    if (args.length < 5) { console.error("Usage error..."); process.exit(1); }
-    const [qId, analysis, conclusion, action, contentType, sourceLink, evidence, position, proposedFix] = args;
+    if (args.length < 10) { process.exit(1); }
+    const [qId, analysis, conclusion, action, contentType, sourceLink, evidence, position, proposedFix, screenshot] = args;
 
     try {
         await client.login(DISCORD_TOKEN);
         const channel = await client.channels.fetch(CHANNEL_ID);
-        
         const resQ = await fetch('https://api-cms-v2-dot-micro-enigma-235001.appspot.com/api/question/get-questions-by-ids', {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionIds: [parseInt(qId)], loadAll: true })
         });
         const qData = (await resQ.json())[0];
-        
         let report = null;
-        if (fs.existsSync('all_reports.json')) {
-            const reports = JSON.parse(fs.readFileSync('all_reports.json'));
-            report = reports.find(r => r.questionId == qId);
-        } else if (fs.existsSync('../all_reports.json')) {
-            const reports = JSON.parse(fs.readFileSync('../all_reports.json'));
-            report = reports.find(r => r.questionId == qId);
-        }
+        if (fs.existsSync('all_reports.json')) report = JSON.parse(fs.readFileSync('all_reports.json')).find(r => r.questionId == qId);
 
         const appName = APP_MAP[qData.appId] || `App ID: ${qData.appId}`;
         const isKnowledgeIssue = report ? report.reasons.some(r => [0, 1, 2].includes(r)) : true;
 
-        // Xử lý logic hiển thị Nguồn
         const hasSource = sourceLink && sourceLink !== "null" && sourceLink !== "undefined";
         const sourceSection = hasSource ? `
 4. Nguồn kiểm chứng (CHỈ khi VERIFY SOURCE)
 - Link nguồn tham khảo: [${sourceLink}]
-- Bằng chứng: [${truncate(evidence || 'N/A', 500)}]
+- Bằng chứng: [${cleanText(evidence)}]
 - Vị trí trong tài liệu [${position || 'N/A'}]` : "";
 
-        // Xử lý logic hiển thị Bản chỉnh sửa (Chỉ khi Valid)
         const isValid = conclusion.toLowerCase().includes('valid');
         const fixSection = (isValid && proposedFix && proposedFix !== "null") ? `
    * Bản chỉnh sửa (chỉ có và hiện khi valid):
-${proposedFix}` : "";
+     ${cleanText(proposedFix)}` : "";
 
         const description = `
   1. Trích xuất nội dung gốc từ CMS:
    * Tên app: ${appName}
-   * Câu hỏi: "${truncate(qData.text, 500)}"
+   * Câu hỏi: "${cleanText(qData.text)}"
    * Các đáp án:
-${qData.answers.map(a => ((a.correct === true || a.isCorrect === true) ? "- [✅] " : "- [❌] ") + truncate(a.text, 200)).join('\n')}
-   * Giải thích: "${truncate(qData.explanation, 500)}"
+${qData.answers.map(a => ((a.correct || a.isCorrect) ? "- [✅] " : "- [❌] ") + cleanText(a.text)).join('\n')}
+   * Giải thích: "${cleanText(qData.explanation)}"
 
 
   2. Phân tích Report:
@@ -70,8 +63,8 @@ ${qData.answers.map(a => ((a.correct === true || a.isCorrect === true) ? "- [✅
 
 
   3. Phân tích tính đúng sai của report
-  * Phân tích: ${analysis}
-  * So sánh:  với CMS 
+  * Phân tích: ${cleanText(analysis)}
+  * So sánh: với CMS 
 ${sourceSection}
 
 
@@ -88,13 +81,11 @@ ${conclusion === 'Invalid' ? 'CMS Đúng -> Report của người dùng là Sai 
 Ảnh screenshot của report mistake:`;
 
         const embed = new EmbedBuilder()
-            .setTitle(`📄 Thẩm định Report Mistake — ID: ${qId} (${appName})`)
+            .setTitle(`Thẩm định Report Mistake của: ${qId} - (${appName})`)
             .setColor(action.toUpperCase() === 'OK' ? 0x00FF00 : (action.toUpperCase() === 'CANCEL' ? 0xFF0000 : 0xFFFF00))
             .setDescription(description);
 
-        if (report && report.screenshot && report.screenshot !== "N/A") {
-            embed.setImage(report.screenshot);
-        }
+        if (screenshot && screenshot !== "null" && screenshot !== "N/A") embed.setImage(screenshot);
 
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId(`confirm_ok_${contentType}_${qId}`).setLabel('OK - Chấp nhận & Sửa').setStyle(ButtonStyle.Success),
