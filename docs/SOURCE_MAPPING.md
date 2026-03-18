@@ -1,13 +1,40 @@
-# SOURCE MAPPING FOR APPS
+# 🗂️ CHỈ MỤC TÀI LIỆU THẨM ĐỊNH (SOURCE MAPPING)
 
-Danh mục này ánh xạ mỗi App tới nguồn tài liệu xác minh chính thống. Agent sẽ đọc file này TRƯỚC KHI tìm kiếm online.
-
-| App Name / appId | Verification Source (File Path or URL) | Notes |
-| :--- | :--- | :--- |
-| CompTIA A+ | `report-mistake-reviewer-project/docs/sources/A_PLUS_GUIDE.pdf` | User provided PDF |
-| PMP | `report-mistake-reviewer-project/docs/sources/pmbok7.pdf` | PMBOK 7th Edition - Updated |
-| CNA | `https://www.atitesting.com/teas/free-practice-test` | Official ATI Link |
-| [Tên App Mới] | [Dán link hoặc đường dẫn file vào đây] | |
+Dưới đây là danh mục tài liệu nội bộ duy nhất được phép sử dụng. TUYỆT ĐỐI không dùng nguồn ngoài.
 
 ---
-*Ghi chú cho Agent: Nếu nguồn là file địa phương, hãy dùng công cụ Read File. Nếu là URL, dùng Web Fetch.*
+
+## 🔐 [CompTIA Security+] (appId: 5667261339664384)
+*   **Tier 1: Official Resources**
+    *   (Chưa có)
+*   **Tier 2: Study Guide / Notes**
+    *   `report-mistake-reviewer-project/docs/sources/CompTIA_Security_SY0-701.pdf`
+*   **Tier 3: Standards**
+    *   (Chưa có)
+
+---
+
+## 📋 [PMP] (appId: 5424102907052032)
+*   **Tier 1: Official Resources**
+    *   `report-mistake-reviewer-project/docs/sources/pmbok7.pdf`
+*   **Tier 2: Study Guide / Notes**
+    *   (Chưa có)
+*   **Tier 3: Standards**
+    *   (Chưa có)
+
+---
+
+## 💹 [CFA Level 1] (appId: 5309771708104704)
+*   **Tier 1: Official Resources**
+    *   (Chưa có)
+*   **Tier 2: Study Guide / Notes**
+    *   (Chưa có)
+*   **Tier 3: Standards**
+    *   (Chưa có)
+
+---
+
+### 🛑 QUY TẮC TUÂN THỦ:
+1.  Chỉ sử dụng tài liệu được liệt kê ở trên. 
+2.  Nếu một App không có tài liệu nào trong bảng này -> **BẮT BUỘC** kết luận là **Unclear** | Hành động: **Wait**.
+3.  Không được tự ý suy diễn kiến thức nằm ngoài các file này.
