@@ -4,26 +4,26 @@ on:
   schedule:
     - cron: '0 1 * * *'  # 8:00 AM VN
     - cron: '0 10 * * *' # 5:00 PM VN
-  workflow_dispatch:      # Cho phép bạn bấm nút chạy tay trên GitHub nếu muốn
+  workflow_dispatch:
 
 jobs:
   review:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install dependencies
-        run: npm install
+        run: cd report-mistake-reviewer-project && npm install
 
       - name: Run Automation Review
         env:
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           SESSION_ID: ${{ secrets.SESSION_ID }}
-        run: node scripts/automation-scheduler.js
+        run: cd report-mistake-reviewer-project && node scripts/automation-scheduler.js
