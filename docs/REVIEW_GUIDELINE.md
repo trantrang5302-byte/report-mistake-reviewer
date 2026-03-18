@@ -1,52 +1,57 @@
-# 📋 QUY ĐỊNH THẨM ĐỊNH REPORT MISTAKE (MANDATORY)
+# 📋 QUY ĐỊNH THẨM ĐỊNH REPORT MISTAKE (INTERNAL AUDIT ONLY)
 
-File này là "Kinh Thánh" của Agent. Mọi hành động thẩm định phải tuân thủ 100% các quy tắc dưới đây.
-
----
-
-## 1. PHÂN LOẠI REPORT (BẮT BUỘC)
-
-Dựa trên trường `reasons` (enum) và `otherReason` (text):
-
-### A. KNOWLEDGE ISSUE (Cần Verify Source)
-- **Reasons**: 0 (incorrectAnswer), 1 (wrongExplanation), 2 (wrongCategory).
-- **Other Reason (7)**: Nếu text chứa nội dung sai kiến thức, sai đáp án, sai logic.
-- **Missing Content (4)**: Nếu thiếu thông tin kiến thức để trả lời câu hỏi.
-
-### B. NON-KNOWLEDGE ISSUE (KHÔNG Verify Source)
-- **Reasons**: 3 (grammaticalError), 5 (typo), 6 (badImage).
-- **Missing Content (4)**: Nếu thiếu asset (ảnh, đoạn văn, hình ảnh).
+File này quy định logic thẩm định chuyên sâu. Agent bắt buộc tuân thủ 100%.
 
 ---
 
-## 2. MỤC ĐÍCH TÌM NGUỒN (VERIFY SOURCE)
+## 1. NGUỒN TÀI LIỆU DUY NHẤT
+TUYỆT ĐỐI KHÔNG sử dụng nguồn bên ngoài:
+- ❌ No Google Search
+- ❌ No Web Fetch
+- ❌ No external knowledge
 
-Mục đích duy nhất: **KIỂM CHỨNG TÍNH ĐÚNG/SAI CỦA CMS.**
+**CHỈ ĐƯỢC PHÉP sử dụng:**
+- Tài liệu được liệt kê trong: `report-mistake-reviewer-project/docs/SOURCE_MAPPING.md`
 
-- **CMS (Question, Answers, Explanation) vs Source (Tài liệu chính thống)**.
-- **CMS đúng** (Khớp Source) → **Invalid**.
-- **CMS sai** (Khác Source) → **Valid**.
-- **Không chứng minh được đúng hay sai** → **Unclear**.
-
-### 🛑 LUẬT DIỆT NGU:
-1. **ÉP DÙNG NGUỒN**: Phải có Bằng chứng (Exact Quote) + Link + Vị trí. Thiếu 1 trong 3 = Verify FAIL → Kết luận: **Unclear**.
-2. **KHÔNG SEARCH CHUNG CHUNG**: Mỗi nguồn phải trả lời trực tiếp: "Thông tin này chứng minh CMS đúng hay sai?".
-3. **MATH/LOGIC HIỂN NHIÊN**: Không cần tìm nguồn, chỉ cần giải trình logic.
+**Nếu:**
+- Không tìm thấy thông tin trong tài liệu.
+- Hoặc thông tin không đủ để kết luận chắc chắn.
+👉 **BẮT BUỘC** trả về: **Kết luận: Unclear** | **Hành động: Wait**
 
 ---
 
-## 3. FORMAT BÁO CÁO THẨM ĐỊNH (DISCORD)
+## 2. QUY TRÌNH VERIFY SOURCE (BẮT BUỘC 4 BƯỚC)
+⚠️ Chỉ áp dụng cho: **Knowledge Issue**.
 
-Thẩm định Report Mistake của: [Question ID] - ([Tên app])
+**QUY TẮC ĐỐI CHIẾU NGUỒN (CROSS-REFERENCE):**
+- **KHÔNG** chỉ dùng 1 nguồn rồi kết luận ngay.
+- Agent **BẮT BUỘC** phải tìm thông tin từ **TẤT CẢ các Tier** được cung cấp trong `SOURCE_MAPPING.md` cho App đó.
+- Nếu các nguồn thống nhất -> Confidence tăng cao.
+- Nếu các nguồn mâu thuẫn -> Ưu tiên Tier 1 (Official), nhưng phải giải trình rõ sự mâu thuẫn trong phần Phân tích.
+
+1. **Trích dẫn (Quote)**: Đọc source và chép nguyên văn nội dung liên quan. (❌ Không paraphrase, không tự nhớ kiến thức).
+2. **Suy luận (Reasoning)**: Dựa TRỰC TIẾP trên nội dung vừa trích dẫn. So sánh: Source nói gì? CMS nói gì? Hai bên Khớp hay Mâu thuẫn?
+3. **Kết luận nguồn (Source Verdict)**: Dựa trên source đã đọc, khẳng định Source chứng minh CMS Đúng hay CMS Sai.
+4. **Vị trí (Location)**: Ghi rõ vị trí trong source (Trang / Chương / Dòng / Section).
+
+---
+
+## 3. ĐỘ TIN CẬY (CONFIDENCE SCORE)
+Confidence là mức độ chắc chắn của agent dựa trên độ mạnh của bằng chứng từ Source.
+
+- **Confidence < 70%** (Không đủ chắc): 👉 **BẮT BUỘC** Kết luận: **Unclear** | Hành động: **Wait**.
+
+---
+
+## 4. FORMAT BÁO CÁO THẨM ĐỊNH (DISCORD)
+📄 Thẩm định Report Mistake — ID: [Question ID] ([Tên app])
 
 1. Trích xuất nội dung gốc từ CMS:
    * Tên app: [Tên ứng dụng]
    * Câu hỏi: "[Nguyên văn]"
    * Các đáp án:
-     - [✅] [Đáp án đúng]
-     - [❌] [Đáp án sai 1]
-     - [❌] [Đáp án sai 2]
-     - [❌] [Đáp án sai 3]
+     - [✅] ...
+     - [❌] ...
    * Giải thích: "[Nguyên văn]"
 
 2. Phân tích Report:
@@ -55,18 +60,21 @@ Thẩm định Report Mistake của: [Question ID] - ([Tên app])
 
 3. Phân tích tính đúng sai của report
    * Phân tích: [Logic dựa trên CMS + kiến thức]
-   * So sánh: [Chỉ rõ điểm CMS đúng/sai so với kiến thức chuẩn]
+   * So sánh: [Chỉ rõ điểm CMS đúng/sai]
 
 4. Nguồn kiểm chứng (CHỈ khi VERIFY SOURCE)
-   - Link nguồn tham khảo: [URL]
-   - Bằng chứng: "[Trích dẫn nguyên văn]"
-   - Vị trí trong tài liệu: [Số trang, chương, ...]
+   - Nguồn tham khảo: [Tên file]
+   - Trích dẫn: "[Chép nguyên văn]"
+   - Suy luận: [Source vs CMS khớp hay mâu thuẫn]
+   - Kết luận nguồn: [Chứng minh CMS Đúng hay Sai]
+   - Vị trí: [Trang, dòng...]
    (⚠️ Nếu KHÔNG VERIFY -> BỎ TOÀN BỘ MỤC NÀY)
 
 5. Kết luận:
 - CMS Đúng -> Report của người dùng là Sai (Invalid).
 - CMS Sai -> Report của người dùng là Đúng (Valid).
-- Unclear -> cần con người xử lý (Unclear).
+- Unclear -> Cần con người xử lý (Unclear).
+- Độ tin cậy (Confidence): [Score]%
 
 **7. Bản chỉnh sửa đề xuất (CHỈ khi Valid):**
 - **Câu hỏi:** [Nội dung mới nếu cần sửa]
@@ -76,16 +84,8 @@ Thẩm định Report Mistake của: [Question ID] - ([Tên app])
 6. Đề xuất xử lý:
    * Hành động: OK / Cancel / Wait
    * Phân loại contentType: (CHỈ set nếu Valid)
-     - other = 0, dev = 1, design = 2, content = 3
-
----
-
-## 4. QUY TẮC CONTENT TYPE & HÀNH ĐỘNG
-
-- **Action = OK** (Valid):
-    - Knowledge Issue (0,1,2,4,7) → **content (3)**.
-    - Grammatical/Typo (3,5) → **content (3)**.
-    - Bad Image (6) → **design (2)**.
-    - Missing Asset (4) → **dev (1)**.
-- **Action = Cancel** (Invalid): contentType = **N/A (BỎ QUA)**.
-- **Action = Wait** (Unclear): contentType = **N/A (BỎ QUA)**.
+     - Knowledge Issue (0,1,2,4,7) -> content (3)
+     - Grammatical/Typo (3,5) -> content (3)
+     - Bad Image (6) -> design (2)
+     - Missing Asset (4) -> dev (1)
+     - Invalid / Unclear -> contentType = N/A (BỎ QUA)
