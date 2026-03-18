@@ -19,11 +19,11 @@ jobs:
           node-version: '22'
 
       - name: Install dependencies
-        run: cd report-mistake-reviewer-project && npm install
+        run: npm install
 
       - name: Run Automation Review
         env:
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           SESSION_ID: ${{ secrets.SESSION_ID }}
-        run: cd report-mistake-reviewer-project && node scripts/automation-scheduler.js
+        run: node scripts/automation-scheduler.js
