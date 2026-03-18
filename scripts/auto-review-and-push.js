@@ -1,5 +1,4 @@
 const fs = require('fs');
-const { execSync } = require('child_process');
 
 const qId = process.argv[2];
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -12,6 +11,11 @@ const APP_MAP = {
 
 async function autoReview() {
     if (!qId) return;
+    if (!GEMINI_API_KEY) {
+        console.error("❌ Lỗi: Thiếu GEMINI_API_KEY trong biến môi trường.");
+        return;
+    }
+
     console.log(`\n🔍 Đang tự động thẩm định Question ID: ${qId}...`);
 
     try {
@@ -30,13 +34,13 @@ async function autoReview() {
         });
         const qData = (await resQ.json())[0];
 
-        // 2. Chuẩn bị Prompt cho AI dựa trên Guideline
+        // 2. Chuẩn bị Prompt
         const guidelinePath = fs.existsSync('docs/REVIEW_GUIDELINE.md') ? 'docs/REVIEW_GUIDELINE.md' : (fs.existsSync('../docs/REVIEW_GUIDELINE.md') ? '../docs/REVIEW_GUIDELINE.md' : '');
-        if (!guidelinePath) throw new Error("Không tìm thấy REVIEW_GUIDELINE.md");
-        const guideline = fs.readFileSync(guidelinePath, 'utf8');
-        const prompt = `Bạn là Chuyên gia thẩm định nội dung. Hãy thẩm định báo cáo sau dựa trên QUY ĐỊNH đính kèm.
+        const guideline = guidelinePath ? fs.readFileSync(guidelinePath, 'utf8') : "Hãy thẩm định báo cáo lỗi.";
         
-        QUY ĐỊNH (MANDATORY):
+        const prompt = `Bạn là Chuyên gia thẩm định nội dung. Hãy thẩm định báo cáo sau dựa trên QUY ĐỊNH.
+        
+        QUY ĐỊNH:
         ${guideline}
 
         DỮ LIỆU CMS:
@@ -49,44 +53,56 @@ async function autoReview() {
         - Reasons: ${JSON.stringify(report.reasons)}
         - User Note: ${report.otherReason}
 
-        YÊU CẦU: Trả về kết quả dưới dạng JSON có cấu trúc:
+        YÊU CẦU: Trả về JSON:
         {
-            "analysis": "Phân tích logic chi tiết...",
+            "analysis": "Phân tích...",
             "conclusion": "Valid/Invalid/Unclear",
             "action": "OK/Cancel/Wait",
             "contentType": "0/1/2/3",
-            "proposedFix": "Nội dung sửa đổi nếu Valid...",
-            "verifySource": true/false,
-            "sourceLink": "URL nếu có",
-            "evidence": "Trích dẫn nếu có",
-            "position": "Vị trí nếu có"
+            "proposedFix": "...",
+            "sourceLink": "...",
+            "evidence": "...",
+            "position": "..."
         }`;
 
-        // 3. Gọi Gemini API (Dùng curl để đơn giản cho GitHub Action)
-        const aiResponse = execSync(`curl https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY} \
-            -H 'Content-Type: application/json' \
-            -X POST \
-            -d '{
-              "contents": [{ "parts":[{"text": ${JSON.stringify(prompt)}}] }]
-            }'`).toString();
-        
-        const aiResultRaw = JSON.parse(aiResponse).candidates[0].content.parts[0].text;
-        const result = JSON.parse(aiResultRaw.match(/\{[\s\S]*\}/)[0]);
+        // 3. Gọi Gemini API bằng fetch (KHÔNG DÙNG CURL QUA SHELL)
+        console.log(">>> Đang gửi yêu cầu tới Gemini API...");
+        const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }]
+            })
+        });
 
-        console.log(">>> AI đã hoàn tất thẩm định.");
+        const aiData = await aiRes.json();
+        if (!aiData.candidates || !aiData.candidates[0]) {
+            console.error("Lỗi API Gemini:", JSON.stringify(aiData));
+            throw new Error("Gemini không trả về kết quả.");
+        }
 
-        // 4. Cập nhật TRƯỜNG NOTE vào CMS (Để lưu vết và hỗ trợ nút bấm OK)
+        const aiText = aiData.candidates[0].content.parts[0].text;
+        const result = JSON.parse(aiText.match(/\{[\s\S]*\}/)[0]);
+
+        console.log("✅ AI đã hoàn tất thẩm định.");
+
+        // 4. Cập nhật CMS
         const noteToSave = `${result.analysis}\n\nĐỀ XUẤT: ${result.proposedFix || 'Giữ nguyên'}`;
         report.note = noteToSave;
         await fetch('https://api-cms-v2-dot-micro-enigma-235001.appspot.com/api/question/update-questions-report', {
             method: 'POST', headers, body: JSON.stringify({ reportQuestions: [report], shouldUpdateLastUpdate: true })
         });
 
-        // 5. Đẩy báo cáo lên Discord
-        execSync(`node scripts/push-detailed-report.js ${qId} "${result.analysis}" "${result.conclusion}" "${result.action}" "${result.contentType}" "${result.sourceLink || 'null'}" "${result.evidence || 'N/A'}" "${result.position || 'N/A'}" "${result.proposedFix || 'null'}"`, { stdio: 'inherit' });
+        // 5. Đẩy lên Discord (Dùng require để gọi script khác)
+        process.argv = [
+            'node', 'push-detailed-report.js',
+            qId, result.analysis, result.conclusion, result.action, result.contentType,
+            result.sourceLink || 'null', result.evidence || 'N/A', result.position || 'N/A', result.proposedFix || 'null'
+        ];
+        require('./push-detailed-report.js');
 
     } catch (e) {
-        console.error("❌ Lỗi thẩm định tự động:", e.message);
+        console.error("❌ Lỗi thẩm định:", e.message);
     }
 }
 
