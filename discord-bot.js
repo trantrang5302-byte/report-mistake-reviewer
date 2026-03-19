@@ -35,7 +35,7 @@ client.on(Events.InteractionCreate, async interaction => {
     await interaction.update({ embeds: [processingEmbed], components: [disabledRow] });
 
     // 2. Thực thi lệnh cập nhật CMS
-    exec(`node execute-action.js ${id} ${status.toUpperCase()} ${classId}`, async (error, stdout, stderr) => {
+    exec(`node scripts/execute-action.js ${id} ${status.toUpperCase()} ${classId}`, async (error, stdout, stderr) => {
         if (error) {
             const shortError = (stderr || error.message).substring(0, 500);
             const errorEmbed = EmbedBuilder.from(originalEmbed)
