@@ -1,5 +1,7 @@
 const fs = require('fs');
+const path = require('path');
 const { spawnSync } = require('child_process');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const qId = process.argv[2];
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
