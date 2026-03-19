@@ -1,8 +1,11 @@
 const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const fs = require('fs');
+require('dotenv').config();
 
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const CHANNEL_ID = '1481518050007318530';
+
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 const APP_MAP = {
     "4558937445629952": "NCE", "4629853261266944": "Phlebotomy", "4638437827149824": "ASE T-Series", "4647892048412672": "Permit test app",
