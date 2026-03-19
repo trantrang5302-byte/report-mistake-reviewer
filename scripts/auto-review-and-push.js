@@ -59,7 +59,9 @@ async function autoReview() {
         const guidelinePath = fs.existsSync('docs/REVIEW_GUIDELINE.md') ? 'docs/REVIEW_GUIDELINE.md' : (fs.existsSync('../docs/REVIEW_GUIDELINE.md') ? '../docs/REVIEW_GUIDELINE.md' : '');
         const guideline = guidelinePath ? fs.readFileSync(guidelinePath, 'utf8') : "Review report.";
         
-        const prompt = `Bạn là Chuyên gia thẩm định nội dung. Hãy thẩm định báo cáo sau dựa trên QUY ĐỊNH đính kèm.
+        const prompt = `Bạn là Chuyên gia thẩm định nội dung. Nhiệm vụ của bạn là thẩm định báo cáo lỗi dựa trên QUY ĐỊNH và TÀI LIỆU được cung cấp.
+
+        TUYỆT ĐỐI CHỈ sử dụng thông tin từ tài liệu hệ thống. Nếu là Knowledge Issue, phải chỉ rõ trích dẫn.
 
         QUY ĐỊNH:
         ${guideline}
@@ -74,16 +76,21 @@ async function autoReview() {
         - Reasons: ${JSON.stringify(report.reasons)}
         - User Note: ${report.otherReason}
 
-        YÊU CẦU: Trả về JSON có cấu trúc chính xác như sau:
+        YÊU CẦU: 
+        1. "comparison": Phải trả về "CMS Đúng" hoặc "CMS Sai".
+        2. "conclusion": "Valid" (Report đúng -> CMS Sai), "Invalid" (Report sai -> CMS Đúng), hoặc "Unclear".
+
+        Trả về JSON có cấu trúc chính xác:
         {
             "qId": "${qId}",
-            "analysis": "Phân tích logic bằng tiếng Việt...",
+            "analysis": "Phân tích logic ngắn gọn bằng tiếng Việt...",
+            "comparison": "CMS Đúng/CMS Sai",
             "verifySource": true/false,
             "sourceLink": "URL",
             "evidence": "Trích dẫn nguyên văn (Quote)",
-            "reasoning": "Suy luận logic 4 bước",
-            "sourceVerdict": "Kết luận nguồn chứng minh CMS Đúng hay Sai",
-            "position": "Vị trí trang/dòng",
+            "reasoning": "Suy luận logic",
+            "sourceVerdict": "Kết luận nguồn",
+            "position": "Vị trí trong tài liệu",
             "confidence": 0-100,
             "conclusion": "Valid/Invalid/Unclear",
             "action": "OK/Cancel/Wait",

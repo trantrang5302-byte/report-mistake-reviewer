@@ -10,7 +10,7 @@ const APP_MAP = {
     "4768893323182080": "Journeyman Electrician", "4791574240165888": "Real Estate", "4795941550817280": "CEN", "4803155283935232": "AP Human Geography",
     "4841079174070272": "PERT", "4865360100589568": "App Test 2", "4888964410376192": "SIE", "4893670444630016": "Driving Theory",
     "4903047163543552": "GED", "4939098850590720": "EPA 608", "4942297368100864": "ASE A-Series", "4977354434674688": "HESI",
-    "4977354434674688": "HESI", "4987271203782656": "VTNE", "4989149748658176": "CDA", "5007337827860480": "NASM-CPT",
+    "4987271203782656": "VTNE", "4989149748658176": "CDA", "5007337827860480": "NASM-CPT",
     "5028296731394048": "CPA", "5074526257807360": "ASVAB", "5087046683066368": "Permit", "5111275205951488": "AP Psychology",
     "5111712646692864": "Cosmetology", "5138959021637632": "Paramedic", "5178126573240320": "CEH", "5211425656012800": "PART 107",
     "5218573983154176": "PCCN", "5218573983154176": "NAPLEX", "5239948022120448": "FSOT", "5264190939856896": "Java SE 17 Developer",
@@ -57,7 +57,7 @@ async function run() {
         });
         const qData = (await resQ.json())[0];
         if (!qData) {
-            console.error(`>>> Error: Question ID ${qId} not found in CMS.`);
+            console.error(`>>> Error: Question ID ${qId} not found.`);
             process.exit(1);
         }
         
@@ -68,13 +68,12 @@ async function run() {
         const isKnowledgeIssue = report ? report.reasons.some(r => [0, 1, 2].includes(r)) : true;
         const isValid = data.conclusion.toLowerCase().includes('valid');
 
-        // Logic ẩn: IF Knowledge Issue AND cần verify -> hiển thị mục 4
+        // Logic ẩn: Mục 4 Nguồn (CHỈ khi VerifySource & Có link)
         const showSource = data.verifySource && data.sourceLink && data.sourceLink !== "null";
-
-        let section4 = "";
+        let sourceSection = "";
         if (showSource) {
-            section4 = `
-4. Nguồn kiểm chứng:
+            sourceSection = `
+**4. Nguồn kiểm chứng:**
 - Link nguồn: ${data.sourceLink}
 - Bằng chứng: ${cleanText(data.evidence)}
 - Vị trí: ${data.position || 'N/A'}`;
@@ -82,7 +81,7 @@ async function run() {
 
         // Section 5 Kết luận
         let section5 = `
-5. Kết luận:
+**5. Kết luận:**
 - Kết luận: ${data.conclusion}`;
         if (showSource) {
             section5 += `\n- Confidence: [${data.confidence || 0}]%`;
@@ -99,26 +98,26 @@ async function run() {
         }
 
         const description = `
-1. Trích xuất nội dung gốc từ CMS:
+**1. Trích xuất nội dung gốc từ CMS:**
 - Tên app: ${appName}
 - Câu hỏi: "${cleanText(qData.text)}"
 - Các đáp án:
 ${qData.answers.map(a => ((a.correct || a.isCorrect) ? "  - [✅] " : "  - [❌] ") + cleanText(a.text)).join('\n')}
 - Giải thích: "${cleanText(qData.explanation)}"
 
-2. Phân tích Report:
+**2. Phân tích Report:**
 - Reasons (enum): [${report ? report.reasons.join(', ') : 'N/A'}]
 - Report Type: ${isKnowledgeIssue ? "Knowledge Issue" : "Non-Knowledge Issue"}
 
-3. Phân tích tính đúng sai của report:
+**3. Phân tích tính đúng sai của report:**
 - Phân tích: ${cleanText(data.analysis)}
-- So sánh với CMS: ${isValid ? "SAI LỆCH" : "Hoàn toàn khớp"}${section4}${section5}
+- So sánh với CMS: ${data.comparison || (isValid ? "CMS Sai" : "CMS Đúng")}${sourceSection}${section5}
 
-6. Đề xuất xử lý:
+**6. Đề xuất xử lý:**
 - Hành động: ${data.action.toUpperCase()}${fixContent}
 - Phân loại contentType: ${data.contentType}
 
-7. Screenshot report:
+**7. Screenshot report:**
 ${data.screenshot || (report ? report.screenshot : 'N/A')}`;
 
         const embed = new EmbedBuilder()
