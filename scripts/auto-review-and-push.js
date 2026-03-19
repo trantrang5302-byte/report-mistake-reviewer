@@ -47,7 +47,11 @@ async function autoReview() {
         });
         const reports = await resRep.json();
         const report = reports.find(r => r.questionId == qId);
-        if (!report) return;
+        if (!report) {
+            console.log(`⚠️ Không tìm thấy report cho Question ID: ${qId}`);
+            return;
+        }
+        console.log(`✅ Đã tìm thấy report ID: ${report.id}`);
 
         const resQ = await fetch('https://api-cms-v2-dot-micro-enigma-235001.appspot.com/api/question/get-questions-by-ids', {
             method: 'POST', headers, body: JSON.stringify({ questionIds: [parseInt(qId)], loadAll: true })
@@ -57,16 +61,37 @@ async function autoReview() {
             console.error(`❌ Không tìm thấy dữ liệu cho Question ID: ${qId}`);
             return;
         }
+        console.log(`✅ Đã lấy dữ liệu câu hỏi: ${qData.text.substring(0, 50)}...`);
 
         const guidelinePath = fs.existsSync('docs/REVIEW_GUIDELINE.md') ? 'docs/REVIEW_GUIDELINE.md' : (fs.existsSync('../docs/REVIEW_GUIDELINE.md') ? '../docs/REVIEW_GUIDELINE.md' : '');
         const guideline = guidelinePath ? fs.readFileSync(guidelinePath, 'utf8') : "Review report.";
         
-        const prompt = `Bạn là Chuyên gia thẩm định nội dung. Nhiệm vụ của bạn là thẩm định báo cáo lỗi dựa trên QUY ĐỊNH và TÀI LIỆU được cung cấp.
+        // 📚 Nạp thêm dữ liệu từ docs/sources (chỉ đọc file văn bản .md, .txt)
+        let localSources = "";
+        const sourcesDir = 'docs/sources';
+        if (fs.existsSync(sourcesDir)) {
+            const files = fs.readdirSync(sourcesDir, { recursive: true });
+            files.forEach(file => {
+                const filePath = path.join(sourcesDir, file);
+                if (fs.statSync(filePath).isFile() && (file.endsWith('.md') || file.endsWith('.txt'))) {
+                    localSources += `\n--- TÀI LIỆU: ${file} ---\n${fs.readFileSync(filePath, 'utf8').substring(0, 3000)}\n`;
+                }
+            });
+        }
 
-        TUYỆT ĐỐI CHỈ sử dụng thông tin từ tài liệu hệ thống. Nếu là Knowledge Issue, phải chỉ rõ trích dẫn.
+        const prompt = `Bạn là Chuyên gia thẩm định nội dung cao cấp. 
+        NHIỆM VỤ: Thẩm định báo cáo lỗi câu hỏi dựa trên QUY ĐỊNH và TÀI LIỆU được cung cấp.
 
-        QUY ĐỊNH:
+        🛑 QUY TẮC CỐT LÕI (BẮT BUỘC):
+        1. TUYỆT ĐỐI CHỈ sử dụng thông tin từ QUY ĐỊNH và TÀI LIỆU hệ thống bên dưới.
+        2. Nếu thông tin KHÔNG có trong tài liệu -> Kết luận "Unclear" (Không tự suy luận bừa bãi).
+        3. "comparison": Phải trả về chuỗi "CMS Sai (Report Đúng)" hoặc "CMS Đúng (Report Sai)".
+
+        QUY ĐỊNH THẨM ĐỊNH:
         ${guideline}
+
+        TÀI LIỆU HỆ THỐNG CUNG CẤP:
+        ${localSources || "Không có tài liệu bổ sung."}
 
         DỮ LIỆU CMS GỐC:
         - App: ${APP_MAP[qData.appId] || qData.appId}
@@ -75,32 +100,28 @@ async function autoReview() {
         - Explanation: ${qData.explanation}
 
         DỮ LIỆU REPORT:
-        - Reasons: ${JSON.stringify(report.reasons)}
-        - User Note: ${report.otherReason}
+        - Reasons (mã lỗi): ${JSON.stringify(report.reasons)}
+        - User Note (ghi chú khách): ${report.otherReason}
 
-        YÊU CẦU: 
-        1. "comparison": Phải trả về "CMS Đúng" hoặc "CMS Sai".
-        2. "conclusion": "Valid" (Report đúng -> CMS Sai), "Invalid" (Report sai -> CMS Đúng), hoặc "Unclear".
-
-        Trả về JSON có cấu trúc chính xác:
+        YÊU CẦU: Trả về JSON có cấu trúc chính xác:
         {
             "qId": "${qId}",
-            "analysis": "Phân tích logic ngắn gọn bằng tiếng Việt...",
-            "comparison": "CMS Đúng/CMS Sai",
-            "verifySource": true/false,
-            "sourceLink": "URL",
-            "evidence": "Trích dẫn nguyên văn (Quote)",
-            "reasoning": "Suy luận logic",
-            "sourceVerdict": "Kết luận nguồn",
-            "position": "Vị trí trong tài liệu",
+            "analysis": "Phân tích logic cực kỳ ngắn gọn, súc tích (tiếng Việt)",
+            "comparison": "CMS Sai (Report Đúng) / CMS Đúng (Report Sai)",
+            "verifySource": true/false (Set true nếu tìm thấy thông tin trong TÀI LIỆU HỆ THỐNG),
+            "sourceLink": "Tên file tài liệu hoặc URL",
+            "evidence": "Trích dẫn nguyên văn bằng chứng từ tài liệu",
+            "reasoning": "Suy luận logic 3 bước",
+            "sourceVerdict": "Kết luận dựa trên nguồn",
+            "position": "Vị trí trong tài liệu (Trang/Mục)",
             "confidence": 0-100,
             "conclusion": "Valid/Invalid/Unclear",
             "action": "OK/Cancel/Wait",
             "contentType": "0/1/2/3",
             "proposedFix": {
-                "question": "Nội dung câu hỏi mới...",
+                "question": "Nội dung câu hỏi mới (Nếu cần sửa)",
                 "answers": ["Đáp án 1", "Đáp án 2..."],
-                "explanation": "Giải thích mới..."
+                "explanation": "Giải thích mới"
             },
             "screenshot": "${report.screenshot || 'null'}"
         }`;
@@ -128,7 +149,7 @@ async function autoReview() {
         fs.unlinkSync(tempJson);
 
     } catch (e) {
-        console.error("❌ Lỗi:", e.message);
+        console.error("❌ Lỗi Chi Tiết:", e.stack);
     }
 }
 

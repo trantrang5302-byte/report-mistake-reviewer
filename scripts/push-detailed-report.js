@@ -102,26 +102,26 @@ async function run() {
         }
 
         const description = `
-**1. Trích xuất nội dung gốc từ CMS:**
+**[I] TRÍCH XUẤT NỘI DUNG GỐC TỪ CMS**
 - Tên app: ${appName}
 - Câu hỏi: "${cleanText(qData.text)}"
 - Các đáp án:
 ${qData.answers.map(a => ((a.correct || a.isCorrect) ? "  - [✅] " : "  - [❌] ") + cleanText(a.text)).join('\n')}
 - Giải thích: "${cleanText(qData.explanation)}"
 
-**2. Phân tích Report:**
+**[II] PHÂN TÍCH REPORT**
 - Reasons (enum): [${report ? report.reasons.join(', ') : 'N/A'}]
 - Report Type: ${isKnowledgeIssue ? "Knowledge Issue" : "Non-Knowledge Issue"}
 
-**3. Phân tích tính đúng sai của report:**
+**[III] PHÂN TÍCH TÍNH ĐÚNG SAI CỦA REPORT**
 - Phân tích: ${cleanText(data.analysis)}
-- So sánh với CMS: ${data.comparison || (isValid ? "CMS Sai" : "CMS Đúng")}${sourceSection}${section5}
+- So sánh với CMS: **${data.comparison || (isValid ? "CMS Sai (Report Đúng)" : "CMS Đúng (Report Sai)")}**${sourceSection}${section5}
 
-**6. Đề xuất xử lý:**
-- Hành động: ${data.action.toUpperCase()}${fixContent}
+**[IV] ĐỀ XUẤT XỬ LÝ**
+- Hành động: **${data.action.toUpperCase()}**${fixContent}
 - Phân loại contentType: ${data.contentType}
 
-**7. Screenshot report:**
+**[V] SCREENSHOT REPORT**
 ${data.screenshot || (report ? report.screenshot : 'N/A')}`;
 
         const embed = new EmbedBuilder()
