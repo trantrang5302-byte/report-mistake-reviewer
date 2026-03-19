@@ -28,6 +28,10 @@ async function autoReview() {
             method: 'POST', headers, body: JSON.stringify({ questionIds: [parseInt(qId)], loadAll: true })
         });
         const qData = (await resQ.json())[0];
+        if (!qData) {
+            console.error(`❌ Không tìm thấy dữ liệu cho Question ID: ${qId}`);
+            return;
+        }
 
         const guidelinePath = fs.existsSync('docs/REVIEW_GUIDELINE.md') ? 'docs/REVIEW_GUIDELINE.md' : (fs.existsSync('../docs/REVIEW_GUIDELINE.md') ? '../docs/REVIEW_GUIDELINE.md' : '');
         const guideline = guidelinePath ? fs.readFileSync(guidelinePath, 'utf8') : "Review report.";
@@ -61,7 +65,11 @@ async function autoReview() {
             "conclusion": "Valid/Invalid/Unclear",
             "action": "OK/Cancel/Wait",
             "contentType": "0/1/2/3",
-            "proposedFix": "Bản sửa lỗi đề xuất nếu có",
+            "proposedFix": {
+                "question": "Nội dung câu hỏi mới...",
+                "answers": ["Đáp án 1", "Đáp án 2..."],
+                "explanation": "Giải thích mới..."
+            },
             "screenshot": "${report.screenshot || 'null'}"
         }`;
 

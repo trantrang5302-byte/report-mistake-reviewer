@@ -36,67 +36,71 @@ async function run() {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionIds: [parseInt(qId)], loadAll: true })
         });
         const qData = (await resQ.json())[0];
+        if (!qData) {
+            console.error(`>>> Error: Question ID ${qId} not found in CMS.`);
+            process.exit(1);
+        }
         
         let report = null;
         if (fs.existsSync('all_reports.json')) report = JSON.parse(fs.readFileSync('all_reports.json')).find(r => r.questionId == qId);
 
         const appName = APP_MAP[qData.appId] || `App ID: ${qData.appId}`;
         const isKnowledgeIssue = report ? report.reasons.some(r => [0, 1, 2].includes(r)) : true;
+        const isValid = data.conclusion.toLowerCase().includes('valid');
 
-        // Xử lý logic hiển thị Nguồn
-        let sourceSection = "";
-        if (data.verifySource && data.sourceLink !== "null") {
-            sourceSection = `
-4. Nguồn kiểm chứng (CHỈ khi VERIFY SOURCE)
-- Link nguồn tham khảo: [${data.sourceLink}]
-- Bằng chứng: [${cleanText(data.evidence)}]
-- Suy luận: [${cleanText(data.reasoning)}]
-- Kết luận nguồn: [${cleanText(data.sourceVerdict)}]
-- Vị trí trong tài liệu [${data.position || 'N/A'}]`;
-        } else {
-            sourceSection = "\n⚠️ Nếu KHÔNG VERIFY → BỎ TOÀN BỘ MỤC NÀY, không tìm nguồn để đối chiếu, cũng không hiển thị trong bản báo cáo";
+        // Logic ẩn: IF Knowledge Issue AND cần verify -> hiển thị mục 4
+        // (User Rule: Nếu không VERIFY SOURCE -> bỏ hoàn toàn mục 4 và Confidence)
+        const showSource = data.verifySource && data.sourceLink && data.sourceLink !== "null";
+
+        let section4 = "";
+        if (showSource) {
+            section4 = `
+4. Nguồn kiểm chứng:
+- Link nguồn: ${data.sourceLink}
+- Bằng chứng: ${cleanText(data.evidence)}
+- Vị trí: ${data.position || 'N/A'}`;
         }
 
-        // Xử lý logic hiển thị Bản chỉnh sửa
-        const isValid = data.conclusion.toLowerCase().includes('valid');
-        const fixSection = (isValid && data.proposedFix && data.proposedFix !== "null") ? `
-   * Bản chỉnh sửa (chỉ có và hiện khi valid):
-     ${cleanText(data.proposedFix)}` : "";
+        // Section 5 Kết luận
+        let section5 = `
+5. Kết luận:
+- Kết luận: ${data.conclusion}`;
+        if (showSource) {
+            section5 += `\n- Confidence: [${data.confidence || 0}]%`;
+        }
+
+        // Logic ẩn: IF Valid -> hiển thị "Bản chỉnh sửa"
+        let fixContent = "";
+        if (isValid && data.proposedFix && typeof data.proposedFix === 'object') {
+            fixContent = `
+- Bản chỉnh sửa:
+  - Câu hỏi: ${cleanText(data.proposedFix.question)}
+  - Đáp án: ${Array.isArray(data.proposedFix.answers) ? data.proposedFix.answers.map(ans => cleanText(ans)).join(', ') : cleanText(data.proposedFix.answers)}
+  - Giải thích: ${cleanText(data.proposedFix.explanation)}`;
+        }
 
         const description = `
-  1. Trích xuất nội dung gốc từ CMS:
-   * Tên app: ${appName}
-   * Câu hỏi: "${cleanText(qData.text)}"
-   * Các đáp án:
-${qData.answers.map(a => ((a.correct || a.isCorrect) ? "- [✅] " : "- [❌] ") + cleanText(a.text)).join('\n')}
-   * Giải thích: "${cleanText(qData.explanation)}"
+1. Trích xuất nội dung gốc từ CMS:
+- Tên app: ${appName}
+- Câu hỏi: "${cleanText(qData.text)}"
+- Các đáp án:
+${qData.answers.map(a => ((a.correct || a.isCorrect) ? "  - [✅] " : "  - [❌] ") + cleanText(a.text)).join('\n')}
+- Giải thích: "${cleanText(qData.explanation)}"
 
+2. Phân tích Report:
+- Reasons (enum): [${report ? report.reasons.join(', ') : 'N/A'}]
+- Report Type: ${isKnowledgeIssue ? "Knowledge Issue" : "Non-Knowledge Issue"}
 
-  2. Phân tích Report:
-   * Reasons (enum): ${report ? report.reasons.map(id => `${id} (${ERROR_MAP[id]})`).join(', ') : 'N/A'}
-   * Report Type: ${isKnowledgeIssue ? "Knowledge Issue" : "Non-Knowledge Issue"}
+3. Phân tích tính đúng sai của report:
+- Phân tích: ${cleanText(data.analysis)}
+- So sánh với CMS: ${isValid ? "SAI LỆCH" : "Hoàn toàn khớp"}${section4}${section5}
 
+6. Đề xuất xử lý:
+- Hành động: ${data.action.toUpperCase()}${fixContent}
+- Phân loại contentType: ${data.contentType}
 
-  3. Phân tích tính đúng sai của report
-  * Phân tích: ${cleanText(data.analysis)}
-  * So sánh: ${isValid ? "SAI LỆCH" : "Hoàn toàn khớp"} với CMS 
-${sourceSection}
-
-
-  5. Kết luận:
-${data.conclusion === 'Invalid' ? 'CMS Đúng -> Report của người dùng là Sai (Invalid).' : (data.conclusion === 'Valid' ? 'CMS Sai -> Report của người dùng là Đúng (Valid).' : 'Unclear -> cần con người xử lý (Unclear).')}
-Độ tin cậy (Confidence): [${data.confidence || 0}]%
-
-
-  6. Đề xuất xử lý:
-   * Hành động: ${data.action.toUpperCase()}${fixSection}
-
-
-   * Phân loại contentType: ${data.contentType}
-
-
-7. Screenshot report
-Ảnh screenshot của report mistake:`;
+7. Screenshot report:
+${data.screenshot || (report ? report.screenshot : 'N/A')}`;
 
         const embed = new EmbedBuilder()
             .setTitle(`📄 Thẩm định Report Mistake — ID: ${qId} (${appName})`)
